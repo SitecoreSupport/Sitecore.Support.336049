@@ -8,28 +8,33 @@ namespace Sitecore.Support.PathAnalyzer
 {
     public static class ApplicationContainer
     {
-        private static Guid _liveProcessingPoolId = Guid.Empty;
-
-        private static Guid _historyProcessingPoolId = Guid.Empty;
-
         public static IProcessingPool<BinaryKey> GetPathAnalyzerLiveProcessingPool()
         {
-            return GetOrCreateProcessingPool(ref _liveProcessingPoolId);
+            return GetOrCreateProcessingPool(Guid.Parse(Settings.GetSetting("PathAnalyzer.Processing.LiveProcessingPoolId", "{384c8344-cb6d-48e6-a70c-e5a3f56a1960}")), "pathAnalyzerLiveProcessingPool");
         }
 
         public static IProcessingPool<BinaryKey> GetPathAnalyzerHistoryProcessingPool()
         {
-            return GetOrCreateProcessingPool(ref _historyProcessingPoolId);
+            return GetOrCreateProcessingPool(Guid.Parse(Settings.GetSetting("PathAnalyzer.Processing.HistoryProcessingPoolId", "{8a532051-697b-45b0-8240-ab4108ab6e12}")), "pathAnalyzerHistoryProcessingPool");
         }
 
-        private static IProcessingPool<BinaryKey> GetOrCreateProcessingPool(ref Guid processingPoolId)
+        private static IProcessingPool<BinaryKey> GetOrCreateProcessingPool(Guid processingPoolId, string description)
         {
+            IProcessingPool<BinaryKey> processingPool = null;
             IProcessingPoolFactory processingPoolFactory = CreateObject<IProcessingPoolFactory>("processing/ProcessingPoolFactory");
-            if (processingPoolId == Guid.Empty)
+            try
             {
-                processingPoolId = processingPoolFactory.CreateProcessingPool(new GenericProcessingPoolDefinition(DuplicateKeyStrategy.Overwrite, 2, 10, "description"));
+                processingPool = processingPoolFactory.GetProcessingPool(processingPoolId);
             }
-            return processingPoolFactory.GetProcessingPool(processingPoolId);
+            catch (ProcessingPoolDoesNotExistException)
+            {
+                processingPoolFactory.CreateProcessingPool(
+                    new GenericProcessingPoolDefinition(DuplicateKeyStrategy.Overwrite, 2, 10, description),
+                    processingPoolId);
+                processingPool = processingPoolFactory.GetProcessingPool(processingPoolId);
+            }
+            Assert.IsNotNull(processingPool, $"Can't get Processing Pool with an Id {processingPoolId}");
+            return processingPool;
         }
 
         private static T CreateObject<T>(string configurationPath) where T : class
